@@ -1,0 +1,25 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs & temp files
+*.log
+*.tmp
+
+# Uploads
+uploads/
+*.db
+
+# Spring Boot config 
+application-dev.yml
