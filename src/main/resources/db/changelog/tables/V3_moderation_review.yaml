@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: V3_create_moderation_review_table
+      author: admin-service
+      logicalFilePath: db/changelog/tables/V3_moderation_review.yaml
+      changes:
+        - createTable:
+            tableName: moderation_review
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: report_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reviewer_admin_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: decision
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: notes
+                  type: text
+                  constraints:
+                    nullable: true
+              - column:
+                  name: reviewed_at
+                  type: timestamp
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: moderation_review
+            schemaName: public
+            indexName: idx_moderation_review_report_id
+            columns:
+              - column:
+                  name: report_id

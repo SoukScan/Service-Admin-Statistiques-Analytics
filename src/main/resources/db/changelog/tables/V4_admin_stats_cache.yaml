@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: V4_create_admin_stats_cache_table
+      author: admin-service
+      logicalFilePath: db/changelog/tables/V4_admin_stats_cache.yaml
+      changes:
+        - createTable:
+            tableName: admin_stats_cache
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: metric_name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: metric_value
+                  type: bigint
+                  constraints:
+                    nullable: true
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: admin_stats_cache
+            schemaName: public
+            indexName: idx_admin_stats_metric_name
+            columns:
+              - column:
+                  name: metric_name

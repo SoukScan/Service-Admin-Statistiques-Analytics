@@ -1,0 +1,85 @@
+server:
+  port: 8090
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: service-admin-moderation-analytics
+
+  datasource:
+    url: jdbc:postgresql://ep-purple-violet-agbhwbie-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_9zLEfBC3ZlDs
+    driver-class-name: org.postgresql.Driver
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    default-schema: public
+    drop-first: false
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: admin-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# Configuration de sécurité JWT
+security:
+  jwt:
+    public-key: classpath:public_key.pem
+
+# Topics Kafka
+kafka:
+  topics:
+    priceReported: "price.reported"
+    priceValidated: "price.validated"
+    userCreated: "user.created"
+    vendorStatusChanged: "vendor.status.changed"
+
+# Management endpoints (actuator)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics,prometheus"
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    root: INFO
+    org.springframework.kafka: INFO
+    org.springframework.security: DEBUG
+    com.soukscan.admin: DEBUG
+
+# Configuration des services externe
+services:
+  vendor-service:
+    url: http://localhost:8081/api/vendors
+  product-service:
+    url: http://localhost:8082/api/products

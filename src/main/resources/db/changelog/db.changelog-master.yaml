@@ -1,0 +1,12 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/tables/V1_admin_action_log.yaml
+
+  - include:
+      file: db/changelog/tables/V2_vendor_status_history.yaml
+
+  - include:
+      file: db/changelog/tables/V3_moderation_review.yaml
+
+  - include:
+      file: db/changelog/tables/V4_admin_stats_cache.yaml

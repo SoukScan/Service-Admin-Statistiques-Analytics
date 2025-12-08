@@ -1,0 +1,43 @@
+# Build artifacts
+target/
+.mvn/
+mvnw.cmd
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+
+# Logs
+logs/
+*.log
+
+# Temp files
+*.tmp
+*.bak
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (if any frontend)
+node_modules/
+npm-debug.log

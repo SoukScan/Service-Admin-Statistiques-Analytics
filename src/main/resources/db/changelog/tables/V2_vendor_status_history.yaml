@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: V2_create_vendor_status_history_table
+      author: admin-service
+      logicalFilePath: db/changelog/tables/V2_vendor_status_history.yaml
+      changes:
+        - createTable:
+            tableName: vendor_status_history
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: vendor_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: old_status
+                  type: varchar(100)
+                  constraints:
+                    nullable: true
+              - column:
+                  name: new_status
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: changed_at
+                  type: timestamp
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: changed_by_admin
+                  type: bigint
+                  constraints:
+                    nullable: true
+        - createIndex:
+            tableName: vendor_status_history
+            schemaName: public
+            indexName: idx_vendor_status_vendor_id
+            columns:
+              - column:
+                  name: vendor_id
