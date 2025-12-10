@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -23,7 +21,7 @@ services:
       - admin-moderation-network
     restart: unless-stopped
 
-  # Zookeeper (required by Kafka)
+  # Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: admin-moderation-zookeeper
@@ -40,13 +38,14 @@ services:
     networks:
       - admin-moderation-network
     healthcheck:
-      test: ["CMD", "echo", "ruok", "|", "nc", "localhost", "2181"]
+      # Use a shell form to pipe 'ruok' into nc; fall back safely if nc missing
+      test: ["CMD-SHELL", "echo ruok | nc -w 2 localhost 2181 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  # Apache Kafka
+  # Kafka
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: admin-moderation-kafka
@@ -61,8 +60,6 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 24
-      KAFKA_LOG_RETENTION_BYTES: 1073741824
     ports:
       - "9092:9092"
       - "29092:29092"
@@ -71,14 +68,17 @@ services:
     networks:
       - admin-moderation-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      # Check Kafka port directly using bash /dev/tcp (works inside this image)
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9092'" ]
       interval: 10s
       timeout: 10s
       retries: 5
+      start_period: 60s
     restart: unless-stopped
 
-  # Admin Moderation Service
+  # Spring Boot Microservice
   admin-moderation-service:
+    image: admin-moderation-service:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -88,48 +88,17 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      zookeeper:
+        condition: service_healthy
     environment:
-      # Spring Boot Configuration
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_APPLICATION_NAME: admin-moderation-service
-      
-      # Database Configuration
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/admin_db
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: admin123
-      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-      
-      # JPA/Hibernate Configuration
-      SPRING_JPA_DATABASE: POSTGRESQL
-      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
-      SPRING_JPA_SHOW_SQL: "false"
-      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-      SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL: "true"
-      
-      # Liquibase Configuration
-      SPRING_LIQUIBASE_ENABLED: "true"
-      SPRING_LIQUIBASE_CHANGE_LOG: classpath:db/changelog/db.changelog-master.yaml
-      SPRING_LIQUIBASE_DEFAULT_SCHEMA: public
-      
-      # Kafka Configuration
+
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_KAFKA_CONSUMER_GROUP_ID: admin-moderation-analytics-group
-      SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET: earliest
-      SPRING_KAFKA_CONSUMER_ENABLE_AUTO_COMMIT: "true"
-      SPRING_KAFKA_CONSUMER_AUTO_COMMIT_INTERVAL_MS: "1000"
-      SPRING_KAFKA_PRODUCER_ACKS: all
-      SPRING_KAFKA_PRODUCER_RETRIES: 3
-      
-      # Logging Configuration
-      LOGGING_LEVEL_COM_SOUKSCAN_ADMIN: INFO
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_WEB: INFO
-      LOGGING_LEVEL_ORG_HIBERNATE: WARN
-      LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_DATA: INFO
-      
-      # Server Configuration
+
       SERVER_PORT: 8090
-      SERVER_SHUTDOWN: graceful
-      SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 30s
     ports:
       - "8090:8090"
     volumes:
@@ -144,18 +113,12 @@ services:
       retries: 3
       start_period: 45s
     restart: unless-stopped
-    stdin_open: true
-    tty: true
 
 volumes:
   postgres_data:
-    driver: local
   zookeeper_data:
-    driver: local
   zookeeper_logs:
-    driver: local
   kafka_data:
-    driver: local
 
 networks:
   admin-moderation-network:

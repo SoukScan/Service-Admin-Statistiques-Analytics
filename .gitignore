@@ -1,0 +1,71 @@
+###############################################################
+#  GITIGNORE — ADMIN-MODERATION-SERVICE (SPRING BOOT + DOCKER)
+###############################################################
+
+############################
+# MAVEN
+############################
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+############################
+# LOGS
+############################
+logs/
+*.log
+
+############################
+# IDE / OS FILES
+############################
+.idea/
+.vscode/
+*.iml
+*.class
+Thumbs.db
+
+############################
+# DOCKER ARTIFACTS
+############################
+*.tar
+docker-build.log
+docker-build-verbose.log
+docker-final.log
+health.json
+project-tree.txt
+
+############################
+# SECURITY — KEYS
+############################
+# ⚠️ IMPORTANT : ne jamais pousser de clés privées !
+private_key.pem
+
+# Si ta clé publique doit être embarquée dans l’image Docker, 
+# alors ne l’ignore PAS.
+# Si elle est sensible → laisse l'ignore actif.
+public_key.pem
+
+############################
+# AUTO-GENERATED DOC / COPILOT-SPAM
+############################
+# (= fichiers générés automatiquement mais non pertinents)
+DOCKER_*.md
+FINAL_*.md
+DELIVERABLES.md
+FUNCTIONAL_ANALYSIS.md
+RESUME_EXECUTIF.md
+DELIVERY_COMPLETION_CERTIFICATE.md
+COMPLETION_REPORT.md
+
+JWT_*.md
+SWAGGER_OPENAPI_IMPLEMENTATION.md
+admin-api.json
+
+############################
+# LIQUIBASE — FICHIERS À IGNORER
+############################
+# Ne JAMAIS ignorer les changelogs Liquibase YAML ! (src/main/resources/db/**)
+# Seulement les docs générées :
+LIQUIBASE_ERD_DIAGRAM.txt
+LIQUIBASE_TECHNICAL_GUIDE.md
+LIQUIBASE_SQL_EXAMPLES.sql
+LIQUIBASE_FILES_GENERATED.md

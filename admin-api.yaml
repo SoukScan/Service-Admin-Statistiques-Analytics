@@ -1,0 +1,468 @@
+openapi: 3.0.1
+info:
+  title: "SoukScan – Admin, Moderation & Analytics API"
+  version: "1.0.0"
+  description: |
+    Microservice d'administration, modération et statistiques de la plateforme SoukScan.
+
+    Features
+    - Vendor Management - Verify, reject, suspend, and activate vendors
+    - Product Management - Create, update, delete, and search products
+    - Moderation - Handle user reports, approve/reject actions, warn users, block accounts
+    - Admin Logs - Track all administrative actions
+    - Statistics - Global and user-specific analytics
+
+    Authentication
+    All secured endpoints require a JWT Bearer token in the `Authorization` header.
+
+  contact:
+    name: "SoukScan Admin Team"
+    url: "https://soukscan.com/support"
+    email: "admin@soukscan.com"
+  license:
+    name: "Apache 2.0"
+    url: "https://www.apache.org/licenses/LICENSE-2.0.html"
+
+servers:
+  - url: "http://localhost:8090"
+    description: "Local Development"
+  - url: "https://api-dev.soukscan.com"
+    description: "Development Environment"
+  - url: "https://api-staging.soukscan.com"
+    description: "Staging Environment"
+  - url: "https://api.soukscan.com"
+    description: "Production Environment"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: "Admin - Audit Logs"
+    description: "Admin action audit log endpoints"
+  - name: "Admin - Moderation"
+    description: "Moderation and user action management endpoints for admins"
+  - name: "Admin - Vendors"
+    description: "Vendor management endpoints for admins"
+  - name: "Admin - Products"
+    description: "Product management endpoints for admins"
+  - name: "Admin - Statistics"
+    description: "Statistics and metrics endpoints for admins"
+
+paths:
+  /admin/products/{id}:
+    get:
+      tags: ["Admin - Products"]
+      summary: Get product details
+      description: Fetch a specific product by ID from the Product service
+      operationId: getProductById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Product ID (unique identifier)
+      responses:
+        "200":
+          description: Product details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDTO'
+        "401":
+          description: Unauthorized - Invalid or missing JWT token
+        "404":
+          description: Product not found
+      security: [{ bearerAuth: [] }]
+
+  /admin/products:
+    get:
+      tags: ["Admin - Products"]
+      summary: List all products
+      operationId: getAllProducts
+      responses:
+        "200":
+          description: Products retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductDTO'
+      security: [{ bearerAuth: [] }]
+    post:
+      tags: ["Admin - Products"]
+      summary: Create a new product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductDTO'
+      responses:
+        "201":
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDTO'
+      security: [{ bearerAuth: [] }]
+
+  /admin/moderation/reports/{reportId}/approve:
+    post:
+      tags: ["Admin - Moderation"]
+      summary: Approve moderation report
+      operationId: approveReport
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationActionDTO'
+      responses:
+        "200":
+          description: Report approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationAction'
+      security: [{ bearerAuth: [] }]
+
+  /admin/moderation/reports/{reportId}/reject:
+    post:
+      tags: ["Admin - Moderation"]
+      summary: Reject moderation report
+      operationId: rejectReport
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationActionDTO'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationAction'
+      security: [{ bearerAuth: [] }]
+
+  /admin/moderation/reports/{reportId}/warn:
+    post:
+      tags: ["Admin - Moderation"]
+      summary: Warn user
+      operationId: warnUser
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModerationActionDTO'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModerationAction'
+      security: [{ bearerAuth: [] }]
+
+  /admin/moderation/reports/pending:
+    get:
+      tags: ["Admin - Moderation"]
+      summary: Get pending reports
+      operationId: getPendingReports
+      responses:
+        "200":
+          description: Pending reports retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModerationReport'
+      security: [{ bearerAuth: [] }]
+
+  /admin/logs:
+    get:
+      tags: ["Admin - Audit Logs"]
+      summary: Get all admin logs
+      operationId: getAll
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminActionLogDTO'
+      security: [{ bearerAuth: [] }]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer token for API authentication. Include `Authorization: Bearer <token>`.
+
+  schemas:
+    ProductDTO:
+      type: object
+      description: Product data
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+          format: double
+        currency:
+          type: string
+        active:
+          type: boolean
+      example:
+        id: 789
+        name: "Ultra Laptop"
+        description: "Lightweight laptop, 16GB RAM, 512GB SSD"
+        category: "electronics"
+        price: 1299.99
+        currency: "USD"
+        active: true
+
+    ModerationActionDTO:
+      type: object
+      required: [actionType, adminId, comment, reportId]
+      properties:
+        adminId:
+          type: integer
+          format: int64
+        reportId:
+          type: integer
+          format: int64
+        actionType:
+          type: string
+          description: Action code (APPROVE, REJECT, WARN, BLOCK)
+        comment:
+          type: string
+      example:
+        adminId: 101
+        reportId: 456
+        actionType: "APPROVE"
+        comment: "Report validated — user warned and content removed."
+
+    ModerationAction:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        adminId:
+          type: integer
+          format: int64
+        reportId:
+          type: integer
+          format: int64
+        actionType:
+          type: string
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: 987
+        adminId: 101
+        reportId: 456
+        actionType: "APPROVE"
+        comment: "Approved after manual review"
+        createdAt: "2025-12-08T21:00:00Z"
+
+    ModerationReport:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        reporterId:
+          type: integer
+          format: int64
+        targetId:
+          type: integer
+          format: int64
+        targetType:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      example:
+        id: 456
+        reporterId: 202
+        targetId: 555
+        targetType: "USER"
+        reason: "Abusive language"
+        status: "PENDING"
+        createdAt: "2025-12-07T15:22:00Z"
+        updatedAt: "2025-12-07T15:22:00Z"
+
+    AdminActionLogDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        adminId:
+          type: integer
+          format: int64
+        actionType:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: integer
+          format: int64
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: 321
+        adminId: 101
+        actionType: "USER_BLOCKED"
+        targetType: "USER"
+        targetId: 555
+        comment: "Blocked for repeated abuse"
+        createdAt: "2025-12-08T20:45:00Z"
+
+    UserStatsDTO:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        totalReportsSubmitted:
+          type: integer
+          format: int32
+        totalValidReports:
+          type: integer
+          format: int32
+        totalRejectedReports:
+          type: integer
+          format: int32
+        warningCount:
+          type: integer
+          format: int32
+        accuracyScore:
+          type: number
+          format: double
+      example:
+        userId: 202
+        totalReportsSubmitted: 12
+        totalValidReports: 9
+        totalRejectedReports: 3
+        warningCount: 1
+        accuracyScore: 0.75
+
+    VendorStatsDTO:
+      type: object
+      properties:
+        vendorId:
+          type: integer
+          format: int64
+        totalPriceReports:
+          type: integer
+          format: int32
+        validPriceReports:
+          type: integer
+          format: int32
+        rejectedPriceReports:
+          type: integer
+          format: int32
+        veracityScore:
+          type: number
+          format: double
+        moderationActions:
+          type: integer
+          format: int32
+      example:
+        vendorId: 12345
+        totalPriceReports: 200
+        validPriceReports: 180
+        rejectedPriceReports: 20
+        veracityScore: 0.9
+        moderationActions: 15
+
+    GlobalStatsDTO:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+          format: int64
+        totalVendors:
+          type: integer
+          format: int64
+        totalPriceReports:
+          type: integer
+          format: int64
+        totalModerationReports:
+          type: integer
+          format: int64
+        totalModerationActions:
+          type: integer
+          format: int64
+        totalWarnings:
+          type: integer
+          format: int64
+        totalBlockedUsers:
+          type: integer
+          format: int64
+      example:
+        totalUsers: 1500000
+        totalVendors: 42000
+        totalPriceReports: 125000
+        totalModerationReports: 8000
+        totalModerationActions: 7800
+        totalWarnings: 1200
+        totalBlockedUsers: 340
+
+  responses: {}
+{"openapi":"3.0.1","info":{"title":"SoukScan – Admin, Moderation & Analytics API","description":"Microservice d'administration, modération et statistiques de la plateforme SoukScan.\n\n## Features\n- **Vendor Management** - Verify, reject, suspend, and activate vendors\n- **Product Management** - Create, update, delete, and search products\n- **Moderation** - Handle user reports, approve/reject actions, warn users, block accounts\n- **Admin Logs** - Track all administrative actions\n- **Statistics** - Global and user-specific analytics\n\n## Authentication\nAll endpoints (except public ones) require JWT Bearer token in the Authorization header:\n```\nAuthorization: Bearer <JWT_TOKEN>\n```\n\n## Required Roles\n- `ROLE_ADMIN` - Full administrative access\n- `ROLE_MODERATOR` - Moderation actions only\n\n","contact":{"name":"SoukScan Admin Team","url":"https://soukscan.com/support","email":"admin@soukscan.com"},"license":{"name":"Apache 2.0","url":"https://www.apache.org/licenses/LICENSE-2.0.html"},"version":"1.0.0"},"servers":[{"url":"http://localhost:8090","description":"Local Development"},{"url":"https://api-dev.soukscan.com","description":"Development Environment"},{"url":"https://api-staging.soukscan.com","description":"Staging Environment"},{"url":"https://api.soukscan.com","description":"Production Environment"}],"security":[{"bearerAuth":[]}],"tags":[{"name":"Admin - Audit Logs","description":"Admin action audit log endpoints"},{"name":"Admin - Moderation","description":"Moderation and user action management endpoints for admins"},{"name":"Admin - Vendors","description":"Vendor management endpoints for admins"},{"name":"Admin - Products","description":"Product management endpoints for admins"},{"name":"Admin - Statistics","description":"Statistics and metrics endpoints for admins"}],"paths":{"/admin/products/{id}":{"get":{"tags":["Admin - Products"],"summary":"Get product details","description":"Fetch a specific product by ID from the Product service","operationId":"getProductById","parameters":[{"name":"id","in":"query","description":"Product ID (unique identifier)","required":true,"example":789}],"responses":{"200":{"description":"Product details retrieved successfully","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"500":{"description":"Internal server error","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"404":{"description":"Product not found","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors/{id}/verify":{"post":{"tags":["Admin - Vendors"],"summary":"Verify vendor","description":"Approve vendor registration","operationId":"verifyVendor","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"id","in":"query","description":"Vendor ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors/{id}/suspend":{"post":{"tags":["Admin - Vendors"],"summary":"Suspend vendor","description":"Temporarily suspend vendor account","operationId":"suspendVendor","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"arg2","in":"query","required":true,"schema":{"type":"string"}},{"name":"id","in":"query","description":"Vendor ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true},{"name":"reason","in":"query","description":"Suspension reason","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors/{id}/reject":{"post":{"tags":["Admin - Vendors"],"summary":"Reject vendor","description":"Reject vendor registration with a reason","operationId":"rejectVendor","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"arg2","in":"query","required":true,"schema":{"type":"string"}},{"name":"id","in":"query","description":"Vendor ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true},{"name":"reason","in":"query","description":"Rejection reason","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors/{id}/activate":{"post":{"tags":["Admin - Vendors"],"summary":"Activate vendor","description":"Re-enable suspended vendor account","operationId":"activateVendor","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"id","in":"query","description":"Vendor ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/products":{"get":{"tags":["Admin - Products"],"summary":"List all products","description":"Fetch all products from the Product service with optional filtering","operationId":"getAllProducts","responses":{"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}},"403":{"description":"Forbidden - Insufficient permissions","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}},"200":{"description":"Products retrieved successfully","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}},"security":[{"bearerAuth":[]}]}},"post":{"tags":["Admin - Products"],"summary":"Create a new product","description":"Create a new product in the Product service","operationId":"createProduct","parameters":[{"name":"arg1","in":"query","description":"Admin ID performing the action","required":true,"schema":{"type":"integer","format":"int64"}}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}},"required":true},"responses":{"403":{"description":"Forbidden - Only ROLE_ADMIN can create products","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"201":{"description":"Product created successfully","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"400":{"description":"Bad request - Invalid product data","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ProductDTO"}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/users/{userId}/block":{"post":{"tags":["Admin - Moderation"],"summary":"Block user","description":"Block a user account and record the admin action","operationId":"blockUser","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"userId","in":"query","description":"User ID to block","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ModerationActionDTO"}}},"required":true},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/reports/{reportId}/warn":{"post":{"tags":["Admin - Moderation"],"summary":"Warn user","description":"Send a warning to a user and record the admin action","operationId":"warnUser","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"reportId","in":"query","description":"Moderation Report ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ModerationActionDTO"}}},"required":true},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/reports/{reportId}/reject":{"post":{"tags":["Admin - Moderation"],"summary":"Reject moderation report","description":"Reject a moderation report and record the admin action","operationId":"rejectReport","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"reportId","in":"query","description":"Moderation Report ID","required":true},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ModerationActionDTO"}}}},"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/reports/{reportId}/approve":{"post":{"tags":["Admin - Moderation"],"summary":"Approve moderation report","description":"Approve a moderation report and record the admin action taken","operationId":"approveReport","parameters":[{"name":"arg1","in":"query","required":true,"schema":{"type":"integer","format":"int64"}},{"name":"reportId","in":"query","description":"Moderation Report ID","required":true,"example":456},{"name":"adminId","in":"query","description":"Admin ID performing the action","required":true,"example":101}],"requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ModerationActionDTO"}}}},"responses":{"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}},"404":{"description":"Report not found","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}},"500":{"description":"Internal server error","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}},"200":{"description":"Report approved successfully","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}},"400":{"description":"Bad request - Invalid action","content":{"*/*":{"schema":{"$ref":"#/components/schemas/ModerationAction"}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors":{"get":{"tags":["Admin - Vendors"],"summary":"Get all vendors","description":"Fetch all vendors from Vendor-Service with pagination and filtering","operationId":"getAllVendors","responses":{"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"type":"object"}}}},"403":{"description":"Forbidden - Insufficient permissions","content":{"*/*":{"schema":{"type":"object"}}}},"200":{"description":"List of vendors retrieved successfully","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/vendors/{id}":{"get":{"tags":["Admin - Vendors"],"summary":"Get vendor by ID","description":"Fetch a specific vendor details from Vendor-Service","operationId":"getVendorById","parameters":[{"name":"id","in":"query","description":"Vendor ID (unique identifier)","required":true,"example":12345}],"responses":{"200":{"description":"Vendor details retrieved successfully","content":{"*/*":{"schema":{"type":"object"}}}},"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"type":"object"}}}},"404":{"description":"Vendor not found","content":{"*/*":{"schema":{"type":"object"}}}},"500":{"description":"Internal server error","content":{"*/*":{"schema":{"type":"object"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/stats/vendors/{vendorId}":{"get":{"tags":["Admin - Statistics"],"summary":"Get vendor statistics","description":"Retrieve statistics for a specific vendor","operationId":"getVendorStats","parameters":[{"name":"vendorId","in":"query","description":"Vendor ID","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/VendorStatsDTO"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/stats/users/{userId}":{"get":{"tags":["Admin - Statistics"],"summary":"Get user statistics","description":"Retrieve statistics for a specific user","operationId":"getUserStats","parameters":[{"name":"userId","in":"query","description":"User ID","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"$ref":"#/components/schemas/UserStatsDTO"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/stats/global":{"get":{"tags":["Admin - Statistics"],"summary":"Get global statistics","description":"Retrieve aggregated statistics for the entire platform including total users, vendors, reports, and moderation actions","operationId":"getGlobalStats","responses":{"200":{"description":"Global statistics retrieved successfully","content":{"*/*":{"schema":{"$ref":"#/components/schemas/GlobalStatsDTO"}}}},"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"$ref":"#/components/schemas/GlobalStatsDTO"}}}},"500":{"description":"Internal server error","content":{"*/*":{"schema":{"$ref":"#/components/schemas/GlobalStatsDTO"}}}}},"security":[{"bearerAuth":[]}]}},"/admin/products/suggestions":{"get":{"tags":["Admin - Products"],"summary":"Get product suggestions","description":"Get top product suggestions for a query","operationId":"getSuggestions","parameters":[{"name":"arg0","in":"query","description":"Search query","required":true,"schema":{"type":"string"}}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/products/search":{"get":{"tags":["Admin - Products"],"summary":"Search products by name","description":"Search for products using a name query (partial match)","operationId":"searchByName","parameters":[{"name":"arg0","in":"query","description":"Product name (partial match)","required":true,"schema":{"type":"string"},"example":"laptop"}],"responses":{"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}},"400":{"description":"Bad request - Missing query parameter","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}},"200":{"description":"Search results retrieved successfully","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/products/category/{category}":{"get":{"tags":["Admin - Products"],"summary":"Filter products by category","description":"Get all products in a specific category","operationId":"findByCategory","parameters":[],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ProductDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/reports/pending":{"get":{"tags":["Admin - Moderation"],"summary":"Get pending reports","description":"Fetch all pending moderation reports awaiting admin action","operationId":"getPendingReports","responses":{"401":{"description":"Unauthorized - Invalid or missing JWT token","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ModerationReport"}}}}},"403":{"description":"Forbidden - Insufficient permissions","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ModerationReport"}}}}},"200":{"description":"Pending reports retrieved successfully","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ModerationReport"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/moderation/actions":{"get":{"tags":["Admin - Moderation"],"summary":"Get moderation actions history","description":"Fetch all moderation actions performed by admins","operationId":"getActionsHistory","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/ModerationAction"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/logs":{"get":{"tags":["Admin - Audit Logs"],"summary":"Get all admin logs","description":"Retrieve all admin action logs","operationId":"getAll","responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AdminActionLogDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/logs/target/{targetType}":{"get":{"tags":["Admin - Audit Logs"],"summary":"Get logs by target type","description":"Retrieve all actions targeting a specific entity type","operationId":"getByTargetType","parameters":[{"name":"targetType","in":"query","description":"Target type (e.g., VENDOR, USER, PRODUCT)","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AdminActionLogDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/logs/target-id/{targetId}":{"get":{"tags":["Admin - Audit Logs"],"summary":"Get logs by target ID","description":"Retrieve all actions targeting a specific entity","operationId":"getByTargetId","parameters":[{"name":"targetId","in":"query","description":"Target entity ID","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AdminActionLogDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/logs/admin/{adminId}":{"get":{"tags":["Admin - Audit Logs"],"summary":"Get logs by admin","description":"Retrieve all actions performed by a specific admin","operationId":"getByAdmin","parameters":[{"name":"adminId","in":"query","description":"Admin ID","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AdminActionLogDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"/admin/logs/action/{actionType}":{"get":{"tags":["Admin - Audit Logs"],"summary":"Get logs by action type","description":"Retrieve all actions of a specific type","operationId":"getByAction","parameters":[{"name":"actionType","in":"query","description":"Action type (e.g., VENDOR_VERIFIED, USER_WARNED)","required":true}],"responses":{"200":{"description":"OK","content":{"*/*":{"schema":{"type":"array","items":{"$ref":"#/components/schemas/AdminActionLogDTO"}}}}}},"security":[{"bearerAuth":[]}]}},"components":{"schemas":{"ProductDTO":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"name":{"type":"string"},"description":{"type":"string"},"category":{"type":"string"},"price":{"type":"number","format":"double"},"currency":{"type":"string"},"active":{"type":"boolean"}},"description":"Product data"},"ModerationActionDTO":{"required":["actionType","adminId","comment","reportId"],"type":"object","properties":{"adminId":{"type":"integer","format":"int64"},"reportId":{"type":"integer","format":"int64"},"actionType":{"type":"string"},"comment":{"type":"string"}}},"ModerationAction":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"adminId":{"type":"integer","format":"int64"},"reportId":{"type":"integer","format":"int64"},"actionType":{"type":"string"},"comment":{"type":"string"},"createdAt":{"type":"string","format":"date-time"}}},"VendorStatsDTO":{"type":"object","properties":{"vendorId":{"type":"integer","format":"int64"},"totalPriceReports":{"type":"integer","format":"int32"},"validPriceReports":{"type":"integer","format":"int32"},"rejectedPriceReports":{"type":"integer","format":"int32"},"veracityScore":{"type":"number","format":"double"},"moderationActions":{"type":"integer","format":"int32"}}},"UserStatsDTO":{"type":"object","properties":{"userId":{"type":"integer","format":"int64"},"totalReportsSubmitted":{"type":"integer","format":"int32"},"totalValidReports":{"type":"integer","format":"int32"},"totalRejectedReports":{"type":"integer","format":"int32"},"warningCount":{"type":"integer","format":"int32"},"accuracyScore":{"type":"number","format":"double"}}},"GlobalStatsDTO":{"type":"object","properties":{"totalUsers":{"type":"integer","format":"int64"},"totalVendors":{"type":"integer","format":"int64"},"totalPriceReports":{"type":"integer","format":"int64"},"totalModerationReports":{"type":"integer","format":"int64"},"totalModerationActions":{"type":"integer","format":"int64"},"totalWarnings":{"type":"integer","format":"int64"},"totalBlockedUsers":{"type":"integer","format":"int64"}}},"ModerationReport":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"reporterId":{"type":"integer","format":"int64"},"targetId":{"type":"integer","format":"int64"},"targetType":{"type":"string"},"reason":{"type":"string"},"status":{"type":"string"},"createdAt":{"type":"string","format":"date-time"},"updatedAt":{"type":"string","format":"date-time"}}},"AdminActionLogDTO":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"adminId":{"type":"integer","format":"int64"},"actionType":{"type":"string"},"targetType":{"type":"string"},"targetId":{"type":"integer","format":"int64"},"comment":{"type":"string"},"createdAt":{"type":"string","format":"date-time"}}}},"securitySchemes":{"bearerAuth":{"type":"http","description":"JWT Bearer token for API authentication.\n\n**How to obtain:**\n1. Call the Auth-Service login endpoint\n2. Include the returned token in the Authorization header\n\n**Format:**\n```\nAuthorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...\n```\n\n**Token contains:**\n- `sub`: User ID\n- `username`: Username\n- `roles`: Array of roles (ADMIN, MODERATOR)\n- `email`: User email\n- `iat`: Issued At timestamp\n- `exp`: Expiration timestamp\n","scheme":"bearer","bearerFormat":"JWT"}}}

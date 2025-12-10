@@ -135,7 +135,8 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <!-- Keep H2 available for local runs (dev profile) -->
+            <scope>runtime</scope>
         </dependency>
 
     </dependencies>

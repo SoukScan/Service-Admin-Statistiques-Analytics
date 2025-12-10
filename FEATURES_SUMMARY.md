@@ -152,4 +152,4 @@
 
 ---
 
-**Document généré automatiquement à partir du code du projet (aucune hypothèse externe).**
+

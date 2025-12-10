@@ -1,11 +1,11 @@
 databaseChangeLog:
   - changeSet:
-      id: V1_create_admin_action_log_table
+      id: V6_create_moderation_reports_table
       author: admin-service
-      logicalFilePath: db/changelog/tables/V1_admin_action_log.yaml
+      logicalFilePath: db/changelog/tables/V6_moderation_reports.yaml
       changes:
         - createTable:
-            tableName: admin_action_logs
+            tableName: moderation_reports
             schemaName: public
             columns:
               - column:
@@ -16,47 +16,54 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
-                  name: admin_id
+                  name: reporter_id
                   type: bigint
                   constraints:
                     nullable: false
               - column:
-                  name: action_type
-                  type: varchar(100)
+                  name: target_id
+                  type: bigint
                   constraints:
-                    nullable: true
+                    nullable: false
               - column:
                   name: target_type
                   type: varchar(100)
                   constraints:
-                    nullable: true
+                    nullable: false
               - column:
-                  name: target_id
-                  type: bigint
-                  constraints:
-                    nullable: true
-              - column:
-                  name: comment
+                  name: reason
                   type: text
                   constraints:
                     nullable: true
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: "pending"
+                  constraints:
+                    nullable: false
               - column:
                   name: created_at
                   type: timestamp
                   defaultValueComputed: now()
                   constraints:
                     nullable: false
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
         - createIndex:
-            tableName: admin_action_logs
+            tableName: moderation_reports
             schemaName: public
-            indexName: idx_admin_action_logs_admin_id
+            indexName: idx_moderation_reports_reporter_id
             columns:
               - column:
-                  name: admin_id
+                  name: reporter_id
         - createIndex:
-            tableName: admin_action_logs
+            tableName: moderation_reports
             schemaName: public
-            indexName: idx_admin_action_logs_action_type
+            indexName: idx_moderation_reports_target_id
             columns:
               - column:
-                  name: action_type
+                  name: target_id

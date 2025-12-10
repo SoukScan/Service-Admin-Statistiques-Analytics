@@ -10,3 +10,18 @@ databaseChangeLog:
 
   - include:
       file: db/changelog/tables/V4_admin_stats_cache.yaml
+
+  - include:
+      file: db/changelog/tables/V5_moderation_actions.yaml
+
+  - include:
+      file: db/changelog/tables/V6_moderation_reports.yaml
+
+  - include:
+      file: db/changelog/tables/V7_user_stats.yaml
+
+  - include:
+      file: db/changelog/tables/V8_price_reports.yaml
+
+  - include:
+      file: db/changelog/tables/V9_vendor_stats.yaml

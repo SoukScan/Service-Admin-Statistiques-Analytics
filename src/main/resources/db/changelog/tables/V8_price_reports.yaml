@@ -1,11 +1,11 @@
 databaseChangeLog:
   - changeSet:
-      id: V1_create_admin_action_log_table
+      id: V8_create_price_reports_table
       author: admin-service
-      logicalFilePath: db/changelog/tables/V1_admin_action_log.yaml
+      logicalFilePath: db/changelog/tables/V8_price_reports.yaml
       changes:
         - createTable:
-            tableName: admin_action_logs
+            tableName: price_reports
             schemaName: public
             columns:
               - column:
@@ -16,47 +16,48 @@ databaseChangeLog:
                     primaryKey: true
                     nullable: false
               - column:
-                  name: admin_id
+                  name: product_id
                   type: bigint
                   constraints:
                     nullable: false
               - column:
-                  name: action_type
-                  type: varchar(100)
-                  constraints:
-                    nullable: true
-              - column:
-                  name: target_type
-                  type: varchar(100)
-                  constraints:
-                    nullable: true
-              - column:
-                  name: target_id
+                  name: reporter_id
                   type: bigint
                   constraints:
-                    nullable: true
+                    nullable: false
               - column:
-                  name: comment
-                  type: text
+                  name: reported_price
+                  type: double precision
                   constraints:
-                    nullable: true
+                    nullable: false
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: "pending"
+                  constraints:
+                    nullable: false
               - column:
                   name: created_at
                   type: timestamp
                   defaultValueComputed: now()
                   constraints:
                     nullable: false
+              - column:
+                  name: validated_at
+                  type: timestamp
+                  constraints:
+                    nullable: true
         - createIndex:
-            tableName: admin_action_logs
+            tableName: price_reports
             schemaName: public
-            indexName: idx_admin_action_logs_admin_id
+            indexName: idx_price_reports_product_id
             columns:
               - column:
-                  name: admin_id
+                  name: product_id
         - createIndex:
-            tableName: admin_action_logs
+            tableName: price_reports
             schemaName: public
-            indexName: idx_admin_action_logs_action_type
+            indexName: idx_price_reports_reporter_id
             columns:
               - column:
-                  name: action_type
+                  name: reporter_id

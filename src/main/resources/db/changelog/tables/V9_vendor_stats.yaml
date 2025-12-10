@@ -1,0 +1,58 @@
+databaseChangeLog:
+  - changeSet:
+      id: V9_create_vendor_stats_table
+      author: admin-service
+      logicalFilePath: db/changelog/tables/V9_vendor_stats.yaml
+      changes:
+        - createTable:
+            tableName: vendor_stats
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: vendor_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_reports_against_vendor
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_approved_reports
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_rejected_reports
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: trust_score
+                  type: double precision
+                  defaultValue: 1.0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_updated
+                  type: timestamp
+                  constraints:
+                    nullable: true
+        - createIndex:
+            tableName: vendor_stats
+            schemaName: public
+            indexName: idx_vendor_stats_vendor_id
+            columns:
+              - column:
+                  name: vendor_id

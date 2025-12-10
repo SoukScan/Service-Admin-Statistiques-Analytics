@@ -1,0 +1,58 @@
+databaseChangeLog:
+  - changeSet:
+      id: V7_create_user_stats_table
+      author: admin-service
+      logicalFilePath: db/changelog/tables/V7_user_stats.yaml
+      changes:
+        - createTable:
+            tableName: user_stats
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_reports_submitted
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_valid_reports
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_rejected_reports
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: warning_count
+                  type: int
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_activity
+                  type: timestamp
+                  constraints:
+                    nullable: true
+        - createIndex:
+            tableName: user_stats
+            schemaName: public
+            indexName: idx_user_stats_user_id
+            columns:
+              - column:
+                  name: user_id
