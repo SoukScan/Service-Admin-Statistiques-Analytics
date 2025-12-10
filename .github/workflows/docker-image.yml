@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: CI • Build + Security Scans
 
 on:
   push:
@@ -6,13 +6,58 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+
 jobs:
-
-  build:
-
+  code-scans:
+    name: Lint & Code Security
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Secrets scan (Gitleaks) ---
+      - name: Gitleaks (secrets scan)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --no-git -v
+
+      # --- Static analysis (Semgrep) ---
+      # Uses OSS rules automatically; no token needed.
+      - name: Semgrep (SAST)
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+        env:
+          # leave SEMGREP_APP_TOKEN unset for OSS mode
+          SEMGREP_TIMEOUT: 600
+
+  build-and-image-scan:
+    name: Build Docker & Trivy Scan
+    runs-on: ubuntu-latest
+    needs: code-scans
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG=${{ github.repository }}:${{ github.sha }}
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          docker build -t "$IMAGE_TAG" .
+
+      # --- Container image vulnerability scan (Trivy) ---
+      # Note: we don't upload SARIF (requires GHAS on private repos).
+      - name: Trivy scan (image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: 1
