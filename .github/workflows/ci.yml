@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   security-events: write
+  actions: read
 
 jobs:
   build-maven:
@@ -19,16 +20,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: Build & test with Maven
         run: mvn -B clean verify
+
   depcheck:
-    name: Dependency-Check SCA
+    name: OWASP Dependency-Check (Maven)
     runs-on: ubuntu-latest
     needs: build-maven
 
@@ -36,51 +38,42 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # IMPORTANT : réinitialiser JAVA_HOME comme indiqué dans la doc
-      - name: Run OWASP Dependency-Check
-        uses: dependency-check/Dependency-Check_Action@main
-        id: depcheck
-        env:
-          JAVA_HOME: /opt/jdk
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
-          project: 'service-authentification'  
-          path: '.'                            
-          format: 'HTML'                       
-          out: 'depcheck-reports'
-          args: >
-            --failOnCVSS 7
-            --enableRetired
-      - name: Upload Depcheck report
+          distribution: temurin
+          java-version: "21"
+
+      - name: Run Dependency-Check via Maven
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mvn org.owasp:dependency-check-maven:check \
+            -Dformat=HTML \
+            -DfailBuildOnCVSS=7 \
+            -Dnvd.api.key=${NVD_API_KEY}
+
+      - name: Upload Dependency-Check report
         uses: actions/upload-artifact@v4
         with:
-          name: depcheck-report
-          path: ${{ github.workspace }}/depcheck-reports
-
+          name: dependency-check-report
+          path: target/dependency-check-report.html
 
   semgrep:
-    name: Semgrep SAST
+    name: semgrep/ci
     runs-on: ubuntu-latest
     needs: build-maven
     permissions:
       contents: read
-      security-events: write
-      actions: read
+    env:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+    container:
+      image: semgrep/semgrep
+    if: (github.actor != 'dependabot[bot]')
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Semgrep
-        uses: returntocorp/semgrep-action@fcd5ab7459e8d91cb1777481980d1b18b4fc6735
-        with:
-          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
-          generateSarif: "1"
-
-      - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: semgrep.sarif
+      - uses: actions/checkout@v4
+      - run: semgrep ci
 
   trivy:
     name: Trivy image scan
@@ -88,7 +81,7 @@ jobs:
     needs: build-maven
 
     env:
-      IMAGE_NAME: admin-service
+      IMAGE_NAME: admin-backend         # adapte au nom de ton image
       IMAGE_TAG: ci-${{ github.sha }}
 
     steps:
@@ -102,7 +95,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile      # adapte si ton Dockerfile a un autre nom
+          file: ./Dockerfile           # adapte le chemin si besoin
           push: false
           load: true
           tags: |
