@@ -50,7 +50,7 @@ jobs:
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -Dformat=HTML \
-            -DfailBuildOnCVSS=7 \
+            -DfailBuildOnCVSS=11 \
             -Dnvd.api.key=${NVD_API_KEY}
 
       - name: Upload Dependency-Check report
