@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: service-admin-moderation-analytics
+    name: admin-moderation-service
 
   datasource:
     url: jdbc:postgresql://ep-purple-violet-agbhwbie-pooler.c-2.eu-central-1.aws.neon.tech/neondb?sslmode=require
@@ -45,7 +45,7 @@ spring:
 # Configuration de sécurité JWT
 security:
   jwt:
-    public-key: classpath:public_key.pem
+    secret: HQ1wcR55vl+tsoAHfU5VN7hoQ0gNSTgDDT1VKa7JCGM=
 
 # Topics Kafka
 kafka:
@@ -83,3 +83,21 @@ services:
     url: http://localhost:8081/api/vendors
   product-service:
     url: http://localhost:8082/api/products
+
+# Eureka Client Configuration (disabled by default)
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    healthcheck:
+      enabled: true
+    registry-fetch-interval-seconds: 30
+    instance-info-replication-interval-seconds: 30
+  instance:
+    appname: admin-moderation-service
+    prefer-ip-address: false
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90

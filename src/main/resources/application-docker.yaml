@@ -122,10 +122,9 @@ management:
 # ============================================
 # JWT & SECURITY
 # ============================================
-jwt:
-  public-key-path: file:./public_key.pem
-  issuer: soukscan
-  audience: soukscan-admin
+security:
+  jwt:
+    secret: HQ1wcR55vl+tsoAHfU5VN7hoQ0gNSTgDDT1VKa7JCGM=
 
 # ============================================
 # EXTERNAL SERVICES (WebClient)
@@ -135,3 +134,23 @@ services:
     url: http://vendor-service:8081/api/vendors
   product-service:
     url: http://product-service:8082/api/products
+
+# ============================================
+# EUREKA CLIENT (Enabled in Docker)
+# ============================================
+eureka:
+  client:
+    enabled: true
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+    healthcheck:
+      enabled: true
+    registry-fetch-interval-seconds: 30
+    instance-info-replication-interval-seconds: 30
+  instance:
+    appname: admin-moderation-service
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+    lease-expiration-duration-in-seconds: 90

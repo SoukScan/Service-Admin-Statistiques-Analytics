@@ -78,7 +78,7 @@ services:
 
   # Spring Boot Microservice
   admin-moderation-service:
-    image: admin-moderation-service:latest
+    image: soukscan/admin-moderation-service:1.0.0
     build:
       context: .
       dockerfile: Dockerfile
