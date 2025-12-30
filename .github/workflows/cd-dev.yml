@@ -65,6 +65,62 @@ jobs:
           echo $! > .pf_pid
           sleep 8
 
+
+      # ------------- ELK STACK (Elasticsearch + Kibana + Fluent Bit) --------
+
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Create observability namespace
+        run: |
+          kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add elastic https://helm.elastic.co
+          helm repo add fluent https://fluent.github.io/helm-charts
+          helm repo update
+
+# ---------------- Elasticsearch ----------------
+      - name: Install / Upgrade Elasticsearch
+        run: |
+          helm upgrade --install elasticsearch elastic/elasticsearch \
+            --namespace observability \
+            --set replicas=1 \
+            --set minimumMasterNodes=1 \
+            --set resources.requests.cpu=250m \
+            --set resources.requests.memory=512Mi \
+            --wait \
+            --timeout 10m
+
+# ---------------- Kibana ----------------
+      - name: Install / Upgrade Kibana
+        run: |
+          helm upgrade --install kibana elastic/kibana \
+            --namespace observability \
+            --wait \
+            --timeout 10m
+
+# ---------------- Fluent Bit ----------------
+      - name: Install / Upgrade Fluent Bit
+        run: |
+          helm upgrade --install fluent-bit fluent/fluent-bit \
+            --namespace observability \
+            --set backend.type=es \
+            --set backend.es.host=elasticsearch-master \
+            --set backend.es.port=9200 \
+            --wait \
+            --timeout 5m
+
+# ---------------- Info (logs only) ----------------
+      - name: Show observability services
+        run: |
+          echo "::notice::ELK Stack déployé avec succès"
+          echo "Namespace : observability"
+          echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
+    
+
       - name: DAST – OWASP ZAP
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -74,3 +130,4 @@ jobs:
       - name: Cleanup
         if: always()
         run: kill $(cat .pf_pid) || true
+        
