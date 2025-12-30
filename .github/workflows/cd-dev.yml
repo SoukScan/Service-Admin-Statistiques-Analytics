@@ -59,11 +59,7 @@ jobs:
           kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-      - name: Port-forward service
-        run: |
-          kubectl port-forward deployment/admin-moderation-backend 8081:8080 &
-          echo $! > .pf_pid
-          sleep 8
+    
 
 
       # ------------- ELK STACK (Elasticsearch + Kibana + Fluent Bit) --------
@@ -119,7 +115,18 @@ jobs:
           echo "::notice::ELK Stack déployé avec succès"
           echo "Namespace : observability"
           echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
-    
+
+      - name: ZAP Baseline Scan (Kubernetes Service)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: http://admin-moderation-backend-service.default.svc.cluster.local:8080
+          format: both
+          cmd_options: >
+              -a
+              -J report_json.json
+              -w report_md.md
+              -r report_html.html
+
 
       - name: DAST – OWASP ZAP
         uses: zaproxy/action-baseline@v0.12.0
