@@ -104,24 +104,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         //  LOG SÉCURISÉ (pas de CRLF injection)
-        logger.debug(
-                "JWT validé (userId={}, rolesCount={})",
-                sanitizeForLog(userId),
-                roles != null ? roles.size() : 0
-        );
+        logger.debug("JWT validé avec succès");
 
         filterChain.doFilter(request, response);
-    }
-
-    /**
-     * Nettoyage des données utilisateur avant logging
-     * (prévention CRLF / log forging)
-     */
-    private String sanitizeForLog(String input) {
-        if (input == null) {
-            return "null";
-        }
-        return input.replaceAll("[\n\r\t]", "_");
     }
 
     /**
