@@ -4,123 +4,73 @@ on:
   workflow_dispatch:
   push:
     branches: [ "dev" ]
-  pull_request:
-    branches: [ "dev" ]
 
 permissions:
   contents: read
   packages: read
 
-env:
-  IMAGE_NAME: admin-moderation-backend
-  IMAGE_TAG: ci-${{ github.sha }}
-
 jobs:
   deploy-dev:
-    name: Deploy to Dev (Minikube)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Tag GHCR (adapté)
-      - name: Set GHCR image name with lowercase owner
-        run: echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
+      - name: Set GHCR image
+        run: |
+          echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Setup Minikube
         uses: medyagh/setup-minikube@latest
 
-      - name: Start Minikube & enable ingress, prometheus, grafana
+      - name: Start Minikube
         run: |
           minikube start --wait all
           minikube addons enable ingress
-          minikube addons enable prometheus
-          minikube addons enable grafana
 
-
-
-      # Docker login pour pull l'image sur Minikube
-      - name: Login to GitHub Container Registry (GHCR)
+      - name: Login GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      - name: Use Minikube Docker Daemon
+      - name: Use Minikube Docker
         run: eval $(minikube docker-env)
 
-      # Secret clé publique JWT pour le container
-      - name: Create JWT public key secret in Minikube
-        run: |
-          kubectl create secret generic jwt-public-key \
-            --from-file=public_key.pem=./src/main/resources/public_key.pem || true
-
-      - name: Create GHCR image pull secret in Minikube
+      - name: Create pull secret
         run: |
           kubectl create secret docker-registry ghcr-pull-secret \
             --docker-server=ghcr.io \
             --docker-username=${{ github.repository_owner }} \
             --docker-password=${{ secrets.GHCR_PAT }} \
-            --docker-email=monemail@example.com || true
+            --docker-email=dev@example.com || true
 
-      - name: Pull Docker image from GHCR into Minikube
-        run: |
-          docker pull ${{ env.GHCR_IMAGE }}
-          docker images
+      - name: Pull image
+        run: docker pull ${{ env.GHCR_IMAGE }}
 
-      # Patch le SHA dans le manifest K8s si besoin
-      - name: Replace ${GITHUB_SHA} in deployment.yaml
+      - name: Replace GITHUB_SHA
         run: |
           sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
 
-      # Déploiement sur le cluster Minikube
-      - name: Deploy to Kubernetes
+      - name: Deploy
         run: |
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/
+          kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-      - name: Debug pods and logs (when deploy fails)
-        if: failure()
+      - name: Port-forward service
         run: |
-          echo "==== Pods ===="
-          kubectl get pods -o wide
-          echo "==== Describe (dernier pod admin-moderation-backend) ===="
-          kubectl describe pod $(kubectl get pods -l app=admin-moderation-backend -o jsonpath='{.items[0].metadata.name}')
-          echo "==== Logs (dernier pod admin-moderation-backend) ===="
-          kubectl logs $(kubectl get pods -l app=admin-moderation-backend -o jsonpath='{.items[0].metadata.name}')
-
-      # Port forward pour DAST/scan
-      - name: Port-forward le service pour ZAP et tests
-        run: |
-          kubectl port-forward deployment/admin-moderation-backend 8090:8090 &
+          kubectl port-forward deployment/admin-moderation-backend 8081:8080 &
           echo $! > .pf_pid
           sleep 8
 
-      # Scan DAST baseline ZAP
-      - name: DAST – OWASP ZAP Baseline Scan
+      - name: DAST – OWASP ZAP
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: 'http://localhost:8090'
+          target: 'http://localhost:8081'
         continue-on-error: true
 
-      - name: Stop port-forward ZAP
+      - name: Cleanup
         if: always()
-        run: |
-          kill $(cat .pf_pid) || true
-
-      - name: Stop port-forward Kibana
-        if: always()
-        run: kill $(cat .kibana_pf_pid) || true
-
-      - name: Logs et debug pods (always)
-        if: always()
-        run: |
-          echo "==== Pods ===="
-          kubectl get pods -o wide
-          echo "==== Describe (dernier pod admin-moderation-backend) ===="
-          kubectl describe pod $(kubectl get pods -l app=admin-moderation-backend -o jsonpath='{.items[0].metadata.name}')
-          echo "==== Logs (dernier pod admin-moderation-backend) ===="
-          kubectl logs $(kubectl get pods -l app=admin-moderation-backend -o jsonpath='{.items[0].metadata.name}')
+        run: kill $(cat .pf_pid) || true
