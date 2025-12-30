@@ -16,19 +16,6 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: admin-moderation-backend
-          image: ghcr.io/soukscan/admin-moderation-backend:ci-${GITHUB_SHA}
+          image: ghcr.io/OWNER/admin-moderation-backend:ci-${GITHUB_SHA}
           ports:
-            - containerPort: 8090
-          env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: dev
-            - name: SPRING_SECURITY_JWT_PUBLIC_KEY
-              value: /etc/security/public_key.pem
-          volumeMounts:
-            - mountPath: /etc/security/public_key.pem
-              name: jwt-public-key
-              subPath: public_key.pem
-      volumes:
-        - name: jwt-public-key
-          secret:
-            secretName: jwt-public-key
+            - containerPort: 8080
