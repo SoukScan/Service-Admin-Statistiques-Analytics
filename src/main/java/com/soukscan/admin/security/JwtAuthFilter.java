@@ -31,7 +31,9 @@ import java.util.stream.Collectors;
  */
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
+
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
+
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String AUTHORIZATION_HEADER = "Authorization";
 
@@ -45,18 +47,21 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
 
         String authHeader = request.getHeader(AUTHORIZATION_HEADER);
 
-        // Vérifier le format du header Authorization
+        // Aucun header Authorization → continuer
         if (!StringUtils.hasText(authHeader) || !authHeader.startsWith(BEARER_PREFIX)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        // Extraire le token
+        // Extraire le token JWT
         String token = authHeader.substring(BEARER_PREFIX.length());
 
         // Valider le token
@@ -74,38 +79,57 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Extraire userId (subject), username et rôles
+        // Extraire les informations utilisateur
         String userId = claims.getSubject();
-        String username = jwtUtils.extractUsername(token);
         List<String> roles = jwtUtils.extractRoles(token);
 
-        // Convertir les rôles en SimpleGrantedAuthority
+        // Construire les autorités Spring Security
         List<SimpleGrantedAuthority> authorities = roles.stream()
                 .map(role -> {
-                    String roleName = role.startsWith("ROLE_") ? role : "ROLE_" + role.toUpperCase();
+                    String roleName = role.startsWith("ROLE_")
+                            ? role
+                            : "ROLE_" + role.toUpperCase();
                     return new SimpleGrantedAuthority(roleName);
                 })
                 .collect(Collectors.toList());
 
-        // Créer et injecter l'Authentication dans le SecurityContext
-        Authentication authentication = new UsernamePasswordAuthenticationToken(
-                userId, null, authorities);
+        // Créer l'Authentication
+        Authentication authentication =
+                new UsernamePasswordAuthenticationToken(userId, null, authorities);
 
         ((UsernamePasswordAuthenticationToken) authentication).setDetails(
-                new WebAuthenticationDetailsSource().buildDetails(request));
+                new WebAuthenticationDetailsSource().buildDetails(request)
+        );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        logger.debug("JWT validé pour userId: {} avec rôles: {}", userId, roles);
+        //  LOG SÉCURISÉ (pas de CRLF injection)
+        logger.debug(
+                "JWT validé (userId={}, rolesCount={})",
+                sanitizeForLog(userId),
+                roles != null ? roles.size() : 0
+        );
 
-        // Continuer la chaîne de filtrage
         filterChain.doFilter(request, response);
     }
 
     /**
-     * Envoie une réponse 401 Unauthorized avec un corps JSON
+     * Nettoyage des données utilisateur avant logging
+     * (prévention CRLF / log forging)
      */
-    private void sendUnauthorizedResponse(HttpServletResponse response, String message) throws IOException {
+    private String sanitizeForLog(String input) {
+        if (input == null) {
+            return "null";
+        }
+        return input.replaceAll("[\n\r\t]", "_");
+    }
+
+    /**
+     * Envoie une réponse JSON 401 Unauthorized
+     */
+    private void sendUnauthorizedResponse(HttpServletResponse response, String message)
+            throws IOException {
+
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json;charset=UTF-8");
 
@@ -114,6 +138,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         errorResponse.put("message", message);
         errorResponse.put("status", HttpServletResponse.SC_UNAUTHORIZED);
 
-        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
+        response.getWriter().write(
+                objectMapper.writeValueAsString(errorResponse)
+        );
     }
 }
