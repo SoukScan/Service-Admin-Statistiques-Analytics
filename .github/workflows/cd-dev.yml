@@ -8,183 +8,150 @@ on:
 permissions:
   contents: read
   packages: read
+  security-events: write
+  actions: read
 
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout sources
-      - uses: actions/checkout@v4
+    # 1️⃣ Checkout
+    - uses: actions/checkout@v4
 
-      # 2. Set GHCR image env
-      - name: Set GHCR image
-        run: |
-          echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
+    # 2️⃣ Image GHCR
+    - name: Set GHCR image
+      run: |
+        echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
-      # 3. Setup Minikube
-      - name: Setup Minikube
-        uses: medyagh/setup-minikube@latest
+    # 3️⃣ Minikube
+    - name: Setup Minikube
+      uses: medyagh/setup-minikube@latest
 
-      - name: Start Minikube
-        run: |
-          minikube start --wait all
-          minikube addons enable ingress
+    - name: Start Minikube
+      run: |
+        minikube start --memory=4096 --cpus=2 --wait=all
+        minikube addons enable ingress
 
-      # 4. Install PostgreSQL database in the cluster
-      - name: Install PostgreSQL
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm install postgres bitnami/postgresql \
-            --set auth.username=admin \
-            --set auth.password=adminpass \
-            --set auth.database=adminmod \
-            --wait
+    # 4️⃣ Helm
+    - name: Install Helm
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        helm repo add bitnami https://charts.bitnami.com/bitnami
+        helm repo update
 
-      - name: Wait for PostgreSQL pod to be ready
-        run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql --timeout=180s
+    # 5️⃣ PostgreSQL
+    - name: Install PostgreSQL
+      run: |
+        helm install postgres bitnami/postgresql \
+          --set auth.username=admin \
+          --set auth.password=adminpass \
+          --set auth.database=adminmod \
+          --set primary.persistence.enabled=false \
+          --wait \
+          --timeout 5m
 
-      # 5. Install Kafka in the cluster
-      - name: Install Kafka
-        run: |
-          helm install kafka bitnami/kafka \
-            --set replicaCount=1 \
-            --set auth.clientUser=admin \
-            --set auth.clientPassword=adminpass \
-            --wait
+    - name: Wait PostgreSQL
+      run: |
+        kubectl wait --for=condition=ready pod \
+          -l app.kubernetes.io/instance=postgres \
+          --timeout=180s
 
-      - name: Wait for Kafka pod to be ready
-        run: |
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kafka --timeout=180s
+    # 6️⃣ Kafka (CORRIGÉ – GHCR + KRaft)
+    - name: Install Kafka
+      run: |
+        helm install kafka bitnami/kafka \
+          --set image.registry=ghcr.io \
+          --set image.repository=bitnami/kafka \
+          --set kraft.enabled=true \
+          --set controller.replicaCount=1 \
+          --set replicaCount=1 \
+          --set auth.enabled=false \
+          --set persistence.enabled=false \
+          --wait \
+          --timeout 10m
 
-      # 6. Login/pull docker image
-      - name: Login to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
+    - name: Wait Kafka
+      run: |
+        kubectl wait --for=condition=ready pod \
+          -l app.kubernetes.io/instance=kafka \
+          --timeout=300s
 
-      - name: Use Minikube Docker
-        run: eval $(minikube docker-env)
+    # 7️⃣ Login GHCR
+    - name: Login GHCR
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_PAT }}
 
-      - name: Create pull secret
-        run: |
-          kubectl create secret docker-registry ghcr-pull-secret \
-            --docker-server=ghcr.io \
-            --docker-username=${{ github.repository_owner }} \
-            --docker-password=${{ secrets.GHCR_PAT }} \
-            --docker-email=dev@example.com || true
+    - name: Use Minikube Docker
+      run: eval $(minikube docker-env)
 
-      - name: Pull image
-        run: docker pull ${{ env.GHCR_IMAGE }}
+    - name: Create GHCR pull secret
+      run: |
+        kubectl create secret docker-registry ghcr-pull-secret \
+          --docker-server=ghcr.io \
+          --docker-username=${{ github.actor }} \
+          --docker-password=${{ secrets.GHCR_PAT }} \
+          --docker-email=dev@example.com \
+          --dry-run=client -o yaml | kubectl apply -f -
 
-      # 7. Substitute SHA in deployment manifest
-      - name: Replace GITHUB_SHA in deployment
-        run: |
-          sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
+    # 8️⃣ Deploy backend
+    - name: Deploy backend
+      run: |
+        kubectl apply -f k8s/
+        kubectl set image deployment/admin-moderation-backend \
+          admin-moderation-backend=${{ env.GHCR_IMAGE }}
+        kubectl rollout status deployment/admin-moderation-backend --timeout=180s
 
-      # 8. Deploy backend & wait for rollout
-      - name: Deploy to Minikube
-        run: |
-          kubectl apply -f k8s/
-          kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
-          kubectl rollout status deployment/admin-moderation-backend
+    - name: Wait backend
+      run: |
+        kubectl wait --for=condition=ready pod \
+          -l app=admin-moderation-backend \
+          --timeout=180s
 
-      # 9. Wait until your backend is ready
-      - name: Wait for app to be ready
-        run: |
-          kubectl wait --for=condition=ready pod -l app=admin-moderation-backend --timeout=180s || kubectl get pods -o wide
+    # 9️⃣ Observability (ELK)
+    - name: Create observability namespace
+      run: kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Show pod diagnostics if not running
-        if: failure()
-        run: |
-          echo "\nDETECTED FAILURE: logs & describe below\n"
-          kubectl get pods -o wide
-          kubectl describe pod -l app=admin-moderation-backend
-          kubectl logs -l app=admin-moderation-backend
+    - name: Add ELK repos
+      run: |
+        helm repo add elastic https://helm.elastic.co
+        helm repo add fluent https://fluent.github.io/helm-charts
+        helm repo update
 
-      # 10. Install ELK stack
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    - name: Install Elasticsearch
+      run: |
+        helm install elasticsearch elastic/elasticsearch \
+          --namespace observability \
+          --set replicas=1 \
+          --set minimumMasterNodes=1 \
+          --set resources.requests.cpu=250m \
+          --set resources.requests.memory=512Mi \
+          --wait \
+          --timeout 10m
 
-      - name: Create observability namespace
-        run: |
-          kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+    - name: Install Kibana
+      run: |
+        helm install kibana elastic/kibana \
+          --namespace observability \
+          --wait \
+          --timeout 5m
 
-      - name: Add Helm repositories
-        run: |
-          helm repo add elastic https://helm.elastic.co
-          helm repo add fluent https://fluent.github.io/helm-charts
-          helm repo update
+    - name: Install Fluent Bit
+      run: |
+        helm install fluent-bit fluent/fluent-bit \
+          --namespace observability \
+          --set backend.type=es \
+          --set backend.es.host=elasticsearch-master \
+          --set backend.es.port=9200 \
+          --wait \
+          --timeout 5m
 
-      - name: Install / Upgrade Elasticsearch
-        run: |
-          helm upgrade --install elasticsearch elastic/elasticsearch \
-            --namespace observability \
-            --set replicas=1 \
-            --set minimumMasterNodes=1 \
-            --set resources.requests.cpu=250m \
-            --set resources.requests.memory=512Mi \
-            --wait \
-            --timeout 10m
+    # 🔟 Port-forward backend
+    - name: Port forward backend
+      run: |
+        kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
+        echo $! > .pid
 
-      - name: Install / Upgrade Kibana
-        run: |
-          helm upgrade --install kibana elastic/kibana \
-            --namespace observability \
-            --wait \
-            --timeout 10m
-
-      - name: Install / Upgrade Fluent Bit
-        run: |
-          helm upgrade --install fluent-bit fluent/fluent-bit \
-            --namespace observability \
-            --set backend.type=es \
-            --set backend.es.host=elasticsearch-master \
-            --set backend.es.port=9200 \
-            --wait \
-            --timeout 5m
-
-      - name: Show observability services
-        run: |
-          echo "::notice::ELK Stack déployé avec succès"
-          echo "Namespace : observability"
-          echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
-
-      # 11. Port-forward backend service vers localhost:8080 en background
-      - name: Forward K8s service to localhost
-        run: |
-          kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
-          echo $! > .pid
-          sleep 10
-
-      # 12. Vérifie la dispo HTTP avant ZAP
-      - name: Vérifie service HTTP
-        run: |
-          for i in {1..15}
-          do
-            curl -sf http://localhost:8080 && echo "Service OK" && exit 0
-            echo "En attente du backend... ($i)"
-            sleep 4
-          done
-          echo "Service NOT reachable, logs & describe backend pod :"
-          kubectl get pods -o wide
-          kubectl describe pod -l app=admin-moderation-backend
-          kubectl logs -l app=admin-moderation-backend
-          exit 1
-
-      # 13. ZAP Baseline Scan
-      - name: ZAP Baseline Scan (Kubernetes Service)
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: 'http://localhost:8080'
-          cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
-        continue-on-error: true
-
-      # 14. Cleanup port-forward
-      - name: Kill port-forward
-        if: always()
-        run: kill $(cat .pid) || true
