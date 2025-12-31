@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------ 1. Checkout sources
+      # 1. Checkout sources
       - uses: actions/checkout@v4
 
-      # ------------ 2. Set GHCR image env
+      # 2. Set GHCR image env
       - name: Set GHCR image
         run: |
           echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
-      # ------------ 3. Setup/Start Minikube
+      # 3. Setup Minikube
       - name: Setup Minikube
         uses: medyagh/setup-minikube@latest
 
@@ -31,7 +31,7 @@ jobs:
           minikube start --wait all
           minikube addons enable ingress
 
-      # ------------ 4. Install PostgreSQL database in the cluster
+      # 4. Install PostgreSQL database in the cluster
       - name: Install PostgreSQL
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
@@ -45,7 +45,20 @@ jobs:
         run: |
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql --timeout=180s
 
-      # ------------ 5. Login/pull docker image
+      # 5. Install Kafka in the cluster
+      - name: Install Kafka
+        run: |
+          helm install kafka bitnami/kafka \
+            --set replicaCount=1 \
+            --set auth.clientUser=admin \
+            --set auth.clientPassword=adminpass \
+            --wait
+
+      - name: Wait for Kafka pod to be ready
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kafka --timeout=180s
+
+      # 6. Login/pull docker image
       - name: Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
@@ -67,19 +80,19 @@ jobs:
       - name: Pull image
         run: docker pull ${{ env.GHCR_IMAGE }}
 
-      # ------------ 6. Substitute SHA in deployment manifest
+      # 7. Substitute SHA in deployment manifest
       - name: Replace GITHUB_SHA in deployment
         run: |
           sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
 
-      # ------------ 7. Deploy backend & wait for rollout
+      # 8. Deploy backend & wait for rollout
       - name: Deploy to Minikube
         run: |
           kubectl apply -f k8s/
           kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-      # ------------ 8. Wait until your backend is ready
+      # 9. Wait until your backend is ready
       - name: Wait for app to be ready
         run: |
           kubectl wait --for=condition=ready pod -l app=admin-moderation-backend --timeout=180s || kubectl get pods -o wide
@@ -92,7 +105,7 @@ jobs:
           kubectl describe pod -l app=admin-moderation-backend
           kubectl logs -l app=admin-moderation-backend
 
-      # ------------ 9. Install ELK stack
+      # 10. Install ELK stack
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -141,14 +154,14 @@ jobs:
           echo "Namespace : observability"
           echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
 
-      # ------------ 10. Port-forward backend service vers localhost:8080 en background
+      # 11. Port-forward backend service vers localhost:8080 en background
       - name: Forward K8s service to localhost
         run: |
           kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
           echo $! > .pid
           sleep 10
 
-      # ------------ 11. Vérifie dispo HTTP avant ZAP
+      # 12. Vérifie la dispo HTTP avant ZAP
       - name: Vérifie service HTTP
         run: |
           for i in {1..15}
@@ -163,7 +176,7 @@ jobs:
           kubectl logs -l app=admin-moderation-backend
           exit 1
 
-      # ------------ 12. ZAP Baseline Scan
+      # 13. ZAP Baseline Scan
       - name: ZAP Baseline Scan (Kubernetes Service)
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -171,7 +184,7 @@ jobs:
           cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
         continue-on-error: true
 
-      # ------------ 13. Cleanup port-forward
+      # 14. Cleanup port-forward
       - name: Kill port-forward
         if: always()
         run: kill $(cat .pid) || true
