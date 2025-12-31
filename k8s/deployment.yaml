@@ -19,3 +19,10 @@ spec:
           image: ghcr.io/OWNER/admin-moderation-backend:ci-${GITHUB_SHA}
           ports:
             - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres-postgresql:5432/adminmod"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "admin"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "adminpass"
