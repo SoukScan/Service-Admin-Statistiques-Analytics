@@ -14,15 +14,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- Checkout code
       - uses: actions/checkout@v4
 
-      # -- Set GHCR image
       - name: Set GHCR image
         run: |
           echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
-      # -- Setup Minikube
       - name: Setup Minikube
         uses: medyagh/setup-minikube@latest
 
@@ -31,7 +28,6 @@ jobs:
           minikube start --wait all
           minikube addons enable ingress
 
-      # -- Auth GHCR
       - name: Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
@@ -39,11 +35,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      # -- Use Minikube Docker
       - name: Use Minikube Docker
         run: eval $(minikube docker-env)
 
-      # -- Create image pull secret for K8s
       - name: Create pull secret
         run: |
           kubectl create secret docker-registry ghcr-pull-secret \
@@ -52,23 +46,20 @@ jobs:
             --docker-password=${{ secrets.GHCR_PAT }} \
             --docker-email=dev@example.com || true
 
-      # -- Pull image locally (not strictly necessary, but keeps env clean)
       - name: Pull image
         run: docker pull ${{ env.GHCR_IMAGE }}
 
-      # -- Replace GITHUB_SHA in deployment manifest (for the image tag !)
-      - name: Replace GITHUB_SHA
+      - name: Replace GITHUB_SHA in deployment
         run: |
           sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
 
-      # -- Deploy to Minikube
-      - name: Deploy
+      - name: Deploy to Minikube
         run: |
           kubectl apply -f k8s/
           kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-      # --- ELK Stack -----------------------------------
+      # ----------- ELK Stack -----------------------------------
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -114,30 +105,28 @@ jobs:
             --wait \
             --timeout 5m
 
-      # ----------- Info
       - name: Show observability services
         run: |
           echo "::notice::ELK Stack déployé avec succès"
           echo "Namespace : observability"
-          echo "Kibana Service : kubectl get svc -n observabilité kibana-kibana"
+          echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
 
-      # --- Expose Service for ZAP scan (NodePort)
-      - name: Get Service URL (NodePort)
-        id: serviceurl
+      # --------------------- Expose Service via port-forward
+      - name: Forward K8s service to localhost
         run: |
-          url=$(minikube service admin-moderation-backend-service --url)
-          echo "url=$url" >> $GITHUB_OUTPUT
-          echo "Service exposed at: $url"
+          kubectl port-forward --namespace default service/admin-moderation-backend-service 8080:8080 &
+          echo $! > .pid
+          sleep 5
 
-      # --- ZAP Baseline Scan (via exposed URL)
+      # --------------------- ZAP Baseline Scan
       - name: ZAP Baseline Scan (Kubernetes Service)
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: ${{ steps.serviceurl.outputs.url }}
+          target: 'http://localhost:8080'
           cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
         continue-on-error: true
 
-      # --- Cleanup (optionnel si tu as des process à tuer, sinon tu peux enlever)
-      - name: Cleanup
+      # --------------------- Cleanup port-forward
+      - name: Kill port-forward
         if: always()
-        run: echo "cleanup done"
+        run: kill $(cat .pid) || true
