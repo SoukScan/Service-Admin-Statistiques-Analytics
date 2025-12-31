@@ -14,15 +14,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- 1. Checkout Sources
+      # ------------ 1. Checkout sources
       - uses: actions/checkout@v4
 
-      # --- 2. Set GHCR image env
+      # ------------ 2. Set GHCR image env
       - name: Set GHCR image
         run: |
           echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
-      # --- 3. Install Minikube
+      # ------------ 3. Setup/Start Minikube
       - name: Setup Minikube
         uses: medyagh/setup-minikube@latest
 
@@ -31,7 +31,21 @@ jobs:
           minikube start --wait all
           minikube addons enable ingress
 
-      # --- 4. Auth GHCR
+      # ------------ 4. Install PostgreSQL database in the cluster
+      - name: Install PostgreSQL
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm install postgres bitnami/postgresql \
+            --set auth.username=admin \
+            --set auth.password=adminpass \
+            --set auth.database=adminmod \
+            --wait
+
+      - name: Wait for PostgreSQL pod to be ready
+        run: |
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql --timeout=180s
+
+      # ------------ 5. Login/pull docker image
       - name: Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
@@ -39,11 +53,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
-      # --- 5. Use Minikube Docker engine
       - name: Use Minikube Docker
         run: eval $(minikube docker-env)
 
-      # --- 6. Create K8s secret for GHCR pulls
       - name: Create pull secret
         run: |
           kubectl create secret docker-registry ghcr-pull-secret \
@@ -52,37 +64,35 @@ jobs:
             --docker-password=${{ secrets.GHCR_PAT }} \
             --docker-email=dev@example.com || true
 
-      # --- 7. Pull latest image
       - name: Pull image
         run: docker pull ${{ env.GHCR_IMAGE }}
 
-      # --- 8. Substitute SHA in deployment manifest
+      # ------------ 6. Substitute SHA in deployment manifest
       - name: Replace GITHUB_SHA in deployment
         run: |
           sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
 
-      # --- 9. Deploy backend & wait for rollout
+      # ------------ 7. Deploy backend & wait for rollout
       - name: Deploy to Minikube
         run: |
           kubectl apply -f k8s/
           kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-      # --- 10. Attendre totalement que le pod backend soit READY
+      # ------------ 8. Wait until your backend is ready
       - name: Wait for app to be ready
         run: |
           kubectl wait --for=condition=ready pod -l app=admin-moderation-backend --timeout=180s || kubectl get pods -o wide
 
-      # --- 11. Diagnostics si CrashLoopBackOff ou erreur
       - name: Show pod diagnostics if not running
-        if: failure() # cette étape ne s'exécute que si la précédente a échoué
+        if: failure()
         run: |
-          echo "DETECTED FAILURE: logs & describe below"
+          echo "\nDETECTED FAILURE: logs & describe below\n"
           kubectl get pods -o wide
           kubectl describe pod -l app=admin-moderation-backend
           kubectl logs -l app=admin-moderation-backend
 
-      # -------- ELK Stack -----------------------------------
+      # ------------ 9. Install ELK stack
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -131,14 +141,14 @@ jobs:
           echo "Namespace : observability"
           echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
 
-      # --- 12. Port-forward du service backend vers localhost en background
+      # ------------ 10. Port-forward backend service vers localhost:8080 en background
       - name: Forward K8s service to localhost
         run: |
           kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
           echo $! > .pid
           sleep 10
 
-      # --- 13. Vérifie la dispo HTTP AVANT scan ZAP (avec diagnostic + logs si KO)
+      # ------------ 11. Vérifie dispo HTTP avant ZAP
       - name: Vérifie service HTTP
         run: |
           for i in {1..15}
@@ -153,7 +163,7 @@ jobs:
           kubectl logs -l app=admin-moderation-backend
           exit 1
 
-      # --- 14. ZAP Baseline Scan (Kubernetes Service)
+      # ------------ 12. ZAP Baseline Scan
       - name: ZAP Baseline Scan (Kubernetes Service)
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -161,7 +171,7 @@ jobs:
           cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
         continue-on-error: true
 
-      # --- 15. Cleanup port-forward tunnel
+      # ------------ 13. Cleanup port-forward
       - name: Kill port-forward
         if: always()
         run: kill $(cat .pid) || true
