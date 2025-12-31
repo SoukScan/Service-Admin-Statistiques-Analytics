@@ -16,15 +16,15 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: admin-moderation-backend
-          image: ghcr.io/OWNER/admin-moderation-backend:ci-${GITHUB_SHA}
+          image: ghcr.io/OWNER/admin-moderation-backend:ci
           ports:
             - containerPort: 8080
           env:
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://postgres-postgresql:5432/adminmod"
+              value: jdbc:postgresql://postgres-postgresql:5432/adminmod
             - name: SPRING_DATASOURCE_USERNAME
-              value: "admin"
+              value: admin
             - name: SPRING_DATASOURCE_PASSWORD
-              value: "adminpass"
+              value: adminpass
             - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
-              value: "kafka:9092"
+              value: kafka:9092
