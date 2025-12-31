@@ -14,12 +14,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --- Checkout code
       - uses: actions/checkout@v4
 
+      # -- Set GHCR image
       - name: Set GHCR image
         run: |
           echo "GHCR_IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/admin-moderation-backend:ci-${{ github.sha }}" >> $GITHUB_ENV
 
+      # -- Setup Minikube
       - name: Setup Minikube
         uses: medyagh/setup-minikube@latest
 
@@ -28,16 +31,19 @@ jobs:
           minikube start --wait all
           minikube addons enable ingress
 
-      - name: Login GHCR
+      # -- Auth GHCR
+      - name: Login to GitHub Container Registry (GHCR)
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
+      # -- Use Minikube Docker
       - name: Use Minikube Docker
         run: eval $(minikube docker-env)
 
+      # -- Create image pull secret for K8s
       - name: Create pull secret
         run: |
           kubectl create secret docker-registry ghcr-pull-secret \
@@ -46,24 +52,23 @@ jobs:
             --docker-password=${{ secrets.GHCR_PAT }} \
             --docker-email=dev@example.com || true
 
+      # -- Pull image locally (not strictly necessary, but keeps env clean)
       - name: Pull image
         run: docker pull ${{ env.GHCR_IMAGE }}
 
+      # -- Replace GITHUB_SHA in deployment manifest (for the image tag !)
       - name: Replace GITHUB_SHA
         run: |
           sed -i "s|\${GITHUB_SHA}|${GITHUB_SHA}|g" k8s/deployment.yaml
 
+      # -- Deploy to Minikube
       - name: Deploy
         run: |
           kubectl apply -f k8s/
           kubectl set image deployment/admin-moderation-backend admin-moderation-backend=${{ env.GHCR_IMAGE }}
           kubectl rollout status deployment/admin-moderation-backend
 
-    
-
-
-      # ------------- ELK STACK (Elasticsearch + Kibana + Fluent Bit) --------
-
+      # --- ELK Stack -----------------------------------
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -78,7 +83,7 @@ jobs:
           helm repo add fluent https://fluent.github.io/helm-charts
           helm repo update
 
-# ---------------- Elasticsearch ----------------
+      # ----------- Elasticsearch
       - name: Install / Upgrade Elasticsearch
         run: |
           helm upgrade --install elasticsearch elastic/elasticsearch \
@@ -90,7 +95,7 @@ jobs:
             --wait \
             --timeout 10m
 
-# ---------------- Kibana ----------------
+      # ----------- Kibana
       - name: Install / Upgrade Kibana
         run: |
           helm upgrade --install kibana elastic/kibana \
@@ -98,7 +103,7 @@ jobs:
             --wait \
             --timeout 10m
 
-# ---------------- Fluent Bit ----------------
+      # ----------- Fluent Bit
       - name: Install / Upgrade Fluent Bit
         run: |
           helm upgrade --install fluent-bit fluent/fluent-bit \
@@ -109,32 +114,30 @@ jobs:
             --wait \
             --timeout 5m
 
-# ---------------- Info (logs only) ----------------
+      # ----------- Info
       - name: Show observability services
         run: |
           echo "::notice::ELK Stack déployé avec succès"
           echo "Namespace : observability"
-          echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
+          echo "Kibana Service : kubectl get svc -n observabilité kibana-kibana"
 
+      # --- Expose Service for ZAP scan (NodePort)
+      - name: Get Service URL (NodePort)
+        id: serviceurl
+        run: |
+          url=$(minikube service admin-moderation-backend-service --url)
+          echo "url=$url" >> $GITHUB_OUTPUT
+          echo "Service exposed at: $url"
+
+      # --- ZAP Baseline Scan (via exposed URL)
       - name: ZAP Baseline Scan (Kubernetes Service)
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: http://admin-moderation-backend-service.default.svc.cluster.local:8080
-          format: both
-          cmd_options: >
-              -a
-              -J report_json.json
-              -w report_md.md
-              -r report_html.html
-
-
-      - name: DAST – OWASP ZAP
-        uses: zaproxy/action-baseline@v0.12.0
-        with:
-          target: 'http://localhost:8081'
+          target: ${{ steps.serviceurl.outputs.url }}
+          cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
         continue-on-error: true
 
+      # --- Cleanup (optionnel si tu as des process à tuer, sinon tu peux enlever)
       - name: Cleanup
         if: always()
-        run: kill $(cat .pf_pid) || true
-        
+        run: echo "cleanup done"
