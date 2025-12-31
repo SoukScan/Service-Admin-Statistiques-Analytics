@@ -74,7 +74,6 @@ jobs:
           helm repo add fluent https://fluent.github.io/helm-charts
           helm repo update
 
-      # ----------- Elasticsearch
       - name: Install / Upgrade Elasticsearch
         run: |
           helm upgrade --install elasticsearch elastic/elasticsearch \
@@ -86,7 +85,6 @@ jobs:
             --wait \
             --timeout 10m
 
-      # ----------- Kibana
       - name: Install / Upgrade Kibana
         run: |
           helm upgrade --install kibana elastic/kibana \
@@ -94,7 +92,6 @@ jobs:
             --wait \
             --timeout 10m
 
-      # ----------- Fluent Bit
       - name: Install / Upgrade Fluent Bit
         run: |
           helm upgrade --install fluent-bit fluent/fluent-bit \
@@ -111,14 +108,29 @@ jobs:
           echo "Namespace : observability"
           echo "Kibana Service : kubectl get svc -n observability kibana-kibana"
 
-      # --------------------- Expose Service via port-forward
+      # ----------- Attendre que le pod backend soit prêt
+      - name: Wait for app to be ready
+        run: kubectl wait --for=condition=ready pod -l app=admin-moderation-backend --timeout=120s
+
+      # ----------- Port-forward sur localhost:8080 (background)
       - name: Forward K8s service to localhost
         run: |
-          kubectl port-forward --namespace default service/admin-moderation-backend-service 8080:8080 &
+          kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
           echo $! > .pid
-          sleep 5
+          sleep 10
 
-      # --------------------- ZAP Baseline Scan
+      # ----------- Vérifie la dispo HTTP AVANT scan ZAP
+      - name: Vérifie service HTTP
+        run: |
+          for i in {1..10}
+          do
+            curl -sf http://localhost:8080 && echo "Service OK" && exit 0
+            echo "En attente du backend... ($i)"
+            sleep 4
+          done
+          echo "Service NOT reachable, abandon ZAP" && kubectl get pods && exit 1
+
+      # ----------- ZAP Baseline Scan
       - name: ZAP Baseline Scan (Kubernetes Service)
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -126,7 +138,7 @@ jobs:
           cmd_options: -a -J report_json.json -w report_md.md -r report_html.html
         continue-on-error: true
 
-      # --------------------- Cleanup port-forward
+      # ----------- Cleanup port-forward
       - name: Kill port-forward
         if: always()
         run: kill $(cat .pid) || true
