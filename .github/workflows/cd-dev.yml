@@ -124,10 +124,10 @@ jobs:
 
     - name: Debug backend pods (if needed)
       if: always()
-          run: |
-           kubectl get pods -l app=admin-moderation-backend -o wide
-           kubectl describe pods -l app=admin-moderation-backend || true
-           kubectl logs -l app=admin-moderation-backend --all-containers=true --tail=200 || true
+      run: |
+             kubectl get pods -l app=admin-moderation-backend -o wide
+             kubectl describe pods -l app=admin-moderation-backend || true
+             kubectl logs -l app=admin-moderation-backend --all-containers=true --tail=200 || true
 
 
     # =====================================================
