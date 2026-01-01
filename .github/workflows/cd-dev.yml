@@ -113,15 +113,22 @@ jobs:
     - name: Deploy backend
       run: |
         kubectl apply -f k8s/
-        kubectl set image deployment/admin-moderation-backend \
-          admin-moderation-backend=${{ env.GHCR_IMAGE }}
-        kubectl rollout status deployment/admin-moderation-backend --timeout=180s
 
-    - name: Wait backend
-      run: |
-        kubectl wait --for=condition=ready pod \
-          -l app=admin-moderation-backend \
-          --timeout=180s
+         # CI-friendly: 1 replica only (minikube runner is small)
+         kubectl scale deployment/admin-moderation-backend --replicas=1
+
+          kubectl set image deployment/admin-moderation-backend \
+          admin-moderation-backend=${{ env.GHCR_IMAGE }}
+
+           kubectl rollout status deployment/admin-moderation-backend --timeout=300s
+
+    - name: Debug backend pods (if needed)
+      if: always()
+          run: |
+           kubectl get pods -l app=admin-moderation-backend -o wide
+           kubectl describe pods -l app=admin-moderation-backend || true
+           kubectl logs -l app=admin-moderation-backend --all-containers=true --tail=200 || true
+
 
     # =====================================================
     # 9️⃣ Observability (ELK)
