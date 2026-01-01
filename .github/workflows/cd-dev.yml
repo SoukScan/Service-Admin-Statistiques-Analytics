@@ -129,13 +129,6 @@ jobs:
              kubectl describe pods -l app=admin-moderation-backend || true
              kubectl logs -l app=admin-moderation-backend --all-containers=true --tail=200 || true
 
-    - name: Wait backend pods
-      run: |
-        kubectl wait --for=condition=ready pod \
-          -l app=admin-moderation-backend \
-          --timeout=180s
-
-
 
     # =====================================================
     # 9️⃣ Observability (ELK)
