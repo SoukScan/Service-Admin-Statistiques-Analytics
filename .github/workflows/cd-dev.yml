@@ -175,7 +175,7 @@ jobs:
     # =====================================================
     - name: Port forward backend
       run: |
-        kubectl port-forward service/admin-moderation-backend-service 8080:8080 &
+        kubectl port-forward service/admin-moderation-backend-service 8090:8090 &
         echo $! > .pid
         sleep 10
 
@@ -185,7 +185,7 @@ jobs:
     - name: HTTP check
       run: |
         for i in {1..15}; do
-          curl -sf http://localhost:8080 && exit 0
+          curl -sf http://localhost:8090/actuator/health && exit 0
           sleep 4
         done
         echo "Backend not reachable"
@@ -199,7 +199,7 @@ jobs:
     - name: ZAP Baseline Scan
       uses: zaproxy/action-baseline@v0.12.0
       with:
-        target: "http://localhost:8080"
+        target: "http://localhost:8090/actuator/health"
       continue-on-error: true
 
     # =====================================================
